@@ -1,0 +1,2 @@
+# Improving_Motor_Insurance_Pricing_Through_Joint_Modelling_of_Claim_Frequency_and_Claim_Severity
+Improving Motor Insurance Pricing Through Joint Modelling of Claim Frequency and Claim Severity
