@@ -1,0 +1,30 @@
+TITLE
+Improving Motor Insurance Pricing Through Joint Modelling of Claim Frequency and Claim Severity
+
+PROBLEM STATEMENT
+Insurers must set premiums before they know which policyholders will claim, or how much each claim will cost. Traditional pricing relies on generalized linear models (GLMs), which assume linear effects and can miss interactions between factors such as driver age, vehicle power and bonus-malus level. Poor risk segmentation leads to adverse selection: underpriced risks are retained while overpriced ones leave.
+
+This project examines whether machine learning models (gradient boosting, neural networks) can predict the pure premium (expected claim cost per unit of exposure) more accurately than a Poisson-Gamma GLM, and which risk factors drive the difference.
+
+RESEARCH QUESTIONS
+1. Do gradient boosting (XGBoost/LightGBM) and neural networks outperform a Poisson GLM on claim frequency, measured by Poisson deviance?
+2. Does a Tweedie model or a combined frequency x severity model give a better pure premium estimate?
+3. Which features matter most (use SHAP analysis), and are the models fair across age groups and regions?
+4. How well calibrated is each model across risk deciles (lift charts, Gini index)?
+
+DATASET: freMTPL2 (French Motor Third-Party Liability)
+About 678,000 policies with driver age, vehicle age and power, brand, fuel type, region, bonus-malus and exposure. A separate severity file records the monetary loss per claim.
+
+Download links:
+- Hugging Face (direct CSVs, no login): https://huggingface.co/datasets/mabilton/fremtpl2 (files: freMTPL2freq.csv and freMTPL2sev.csv)
+- OpenML (frequency): https://www.openml.org/d/41214
+- OpenML (severity): https://www.openml.org/d/41215
+- Kaggle (free login required): https://www.kaggle.com/datasets/karansarpal/freMTPL2-french-motor-tpl-insurance-claims
+
+Quick load in Python: sklearn.datasets.fetch_openml(data_id=41214)
+
+POINTS TO NOTE
+- Most policies have zero claims, so the data is heavily imbalanced.
+- Exposure periods vary across policies and must be handled properly in your models.
+- The dataset has some known inconsistencies between the frequency and severity files. Include a data cleaning step and document it in your methodology.
+- The data originates from the R package CASdatasets (Dutang and Charpentier). Please cite it in your paper.
