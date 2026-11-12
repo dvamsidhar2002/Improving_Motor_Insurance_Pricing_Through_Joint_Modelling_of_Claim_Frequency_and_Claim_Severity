@@ -88,3 +88,29 @@ Available dataset sources:
 - [Kaggle dataset](https://www.kaggle.com/datasets/karansarpal/freMTPL2-french-motor-tpl-insurance-claims) — free account required.
 
 The frequency data can also be loaded with `sklearn.datasets.fetch_openml(data_id=41214)`.
+
+### Data Dictionary
+
+#### freMTPL2freq (Policy-level features and claim frequency)
+
+| Column | Type | Range / Values | Description |
+|--------|------|-----------------|-------------|
+| **IDpol** | Integer | Unique ID | Policy identifier (links to severity dataset) |
+| **ClaimNb** | Integer | 0–16 | Number of claims during exposure period |
+| **Exposure** | Float | 0–2.01 years | Policy duration in years |
+| **VehPower** | Integer | 4–15 | Vehicle power rating |
+| **VehAge** | Integer | 0–100 years | Vehicle age in years |
+| **DrivAge** | Integer | 18–100 years | Driver age in years |
+| **BonusMalus** | Integer | 50–350 | Bonus-malus coefficient (<100 = bonus, ≥100 = malus) |
+| **VehBrand** | Categorical | 11 codes (B1, B2, ..., B12) | Car brand (anonymized/grouped) |
+| **VehGas** | Categorical | "Diesel", "Regular" | Fuel type |
+| **Area** | Categorical | A, B, C, D, E, F | Density zone (A = rural, F = urban center) |
+| **Density** | Integer | 1–27,000+ | Population density (inhabitants/km²) |
+| **Region** | Categorical | 21 codes | French administrative region (pre-2016) |
+
+#### freMTPL2sev (Claim-level amounts)
+
+| Column | Type | Range / Values | Description |
+|--------|------|-----------------|-------------|
+| **IDpol** | Integer | Unique ID | Policy identifier (links to frequency dataset) |
+| **ClaimAmount** | Float | >0 EUR | Individual claim amount in euros |
