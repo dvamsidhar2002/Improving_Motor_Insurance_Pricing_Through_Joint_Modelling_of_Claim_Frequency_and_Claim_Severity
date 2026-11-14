@@ -67,6 +67,38 @@ The study uses the freMTPL2 French motor insurance dataset to model claim freque
 - Summarize findings against each research question and clearly state limitations and future work.
 - Ensure that the analysis can be rerun from the documented project files and dependencies.
 
+## Exploratory Data Analysis: Correlation Matrix
+
+![Correlation Matrix Heatmap](Reports/correlation_matrix_heatmap.png)
+
+### Key Findings
+
+A correlation matrix analysis of the freMTPL2 frequency dataset reveals important insights into the relationships between insurance risk factors:
+
+#### Strong Relationships
+- **Driver Age & Bonus-Malus (r = -0.48)**: This is the strongest correlation observed. The negative relationship indicates that older drivers tend to have lower BonusMalus coefficients (values closer to 50), reflecting lower malus penalties. This reflects that experienced drivers accumulate bonuses over time, a key pricing principle in motor insurance.
+
+#### Weak Linear Relationships
+Most variables show **very weak correlations** with each other (|r| < 0.20), including:
+
+- **Claim Frequency (ClaimNb) vs. all other variables**: Nearly zero correlations with driver age, vehicle power, vehicle age, density, and other factors (range: -0.02 to 0.07). This indicates that claim counts are **not strongly linearly dependent** on individual demographic or vehicle characteristics.
+  
+- **Vehicle Power**: Minimal correlation with claim frequency (r = -0.00), suggesting vehicle engine size alone does not explain claim occurrence patterns.
+
+- **Vehicle Age**: Weak correlation with claims (r = 0.07) and exposure (r = -0.05), despite intuitive expectations about older vehicle safety.
+
+- **Density**: Very weak correlation with claims (r = 0.07) and other factors, suggesting geographic population density has minimal linear association with claim frequency at the policy level.
+
+#### Implications for Modeling
+
+1. **Non-linear effects likely**: The weak linear correlations justify the use of machine-learning methods (gradient boosting, neural networks) over simple linear GLMs, as these can capture non-linear relationships and interactions that standard Pearson correlation cannot detect.
+
+2. **Joint frequency-severity modeling justified**: The independence of claim frequency from individual factors suggests that frequency and severity may follow different patterns and should be modeled separately rather than as a single pure-premium model.
+
+3. **Multicollinearity not a concern**: The absence of strong correlations between predictors reduces multicollinearity risk in downstream models, simplifying feature selection and interpretation.
+
+4. **Bonus-Malus as a proxy**: The strong driver age–bonus-malus relationship suggests BonusMalus captures accumulated driving experience and risk history; it may be a more informative predictor than raw driver age.
+
 ## Current project assets
 
 - `Data/freMTPL2freq.csv` — policy-level frequency and exposure data.
