@@ -67,6 +67,63 @@ The study uses the freMTPL2 French motor insurance dataset to model claim freque
 - Summarize findings against each research question and clearly state limitations and future work.
 - Ensure that the analysis can be rerun from the documented project files and dependencies.
 
+## How to use the data for model training
+
+The project currently contains raw data and exploratory notebooks, not a trained model or a training script. The following is a proposed, reproducible starting point; complete the audit before implementing it.
+
+### 1. Understand the two tables
+
+| Table | One row represents | What it provides |
+|---|---|---|
+| `Data/freMTPL2freq.csv` | One policy | `ClaimNb`, exposure in years, and policyholder, vehicle and geographic features |
+| `Data/freMTPL2sev.csv` | One recorded claim amount | `IDpol` and `ClaimAmount` in euros; a policy may have multiple rows |
+
+Join the tables on `IDpol`, but **do not join raw claims directly to policies when training frequency**: multiple claim rows would duplicate a policy and its exposure. Use the original one-row-per-policy table for frequency. For cost targets, sum claim amounts and count severity records by `IDpol` first, then left-join those summaries to the policy table.
+
+For example, a policy with 0.5 years of exposure, two claims and amounts of EUR 1,000 and EUR 500 has a count of 2, total cost EUR 1,500 and observed cost rate EUR 3,000 per policy-year. A policy with no claims contributes a zero count and zero cost; it has no severity observation. These are training outcomes, not predictors available at pricing time.
+
+### 2. Audit and reconcile before defining targets
+
+Check unique policy IDs, positive exposure, nonnegative integer claim counts, positive claim amounts, missing values, unmatched IDs, and whether each policy's `ClaimNb` equals its number of recorded severity rows. Investigate duplicates rather than assuming equal amounts are duplicate claims. Record all decisions and affected policy and claim counts.
+
+An audit of the CSV files currently in this repository found 678,013 distinct policy IDs, 36,102 claims in `ClaimNb`, and 26,639 severity records. Six severity IDs (195 records) have no matching policy. Among matched policies, 9,117 have a claim-count/record-count mismatch: 9,116 have claims but no severity record, and one has a different positive count. These figures describe these files and should be recomputed if the data changes.
+
+**Missing severity is not a zero-cost claim.** As an initial, explicitly limited analysis:
+
+1. Retain all valid policies for a standalone frequency benchmark; report any exclusions.
+2. For the main frequency-times-severity and Tweedie comparison, define a common cost-evaluable cohort of valid policies where `ClaimNb` equals the number of matched severity records. A zero-claim policy with no severity records gets total cost zero; a claimed policy with missing or mismatched amounts is excluded from this cohort, not assigned zero cost. Unmatched severity records cannot be used without policy features.
+3. Report the exclusions, exposure, claims and observed costs, and compare the included and excluded policies by risk characteristics. Missing amounts may be systematic, so results on this cohort need not generalize to the full portfolio. Investigate the source of the mismatch and perform sensitivity analyses before making portfolio-wide pricing claims.
+
+### 3. Split policies, then prepare features
+
+- Split **policy IDs**, not claim rows, into training, validation and final test sets (for example 70% / 15% / 15%, with a recorded random seed). Stratify by whether `ClaimNb` is positive where practical. Assign every claim belonging to a policy to that policy's split; use the same split assignments for every model and both cohorts.
+- Fit imputers, categorical encoders, scaling and any data-driven capping or transformations on the training set only, then apply them to validation and test. Handle previously unseen categories explicitly. Document any capping and retain an uncapped sensitivity analysis for large losses.
+- Use only information available when pricing: `VehPower`, `VehAge`, `DrivAge`, `BonusMalus`, `VehBrand`, `VehGas`, `Area`, `Density` and `Region`, subject to availability and suitability. Do not use `IDpol`, `ClaimNb` or `ClaimAmount` as predictors. Use `Exposure` to account for observation time as described below, not as a substitute for the claim target.
+- The files do not provide an explicit time split here, so a seeded random split estimates performance on similar policies, not future-period performance. Reserve the test set for the final comparison.
+
+### 4. Train baselines and combine predictions
+
+Start with interpretable GLMs, then compare gradient boosting or other models using the same targets, cohort and splits.
+
+| Model | Training rows and target | Exposure treatment and prediction |
+|---|---|---|
+| Frequency | One row per policy, including zero claims; target `ClaimNb` | Fit a Poisson model with `log(Exposure)` as an offset, producing predicted claims per policy-year. Equivalently, for a Poisson estimator supporting sample weights, fit `ClaimNb / Exposure` with weight `Exposure`. |
+| Severity | One row per matched recorded claim in the training split; target `ClaimAmount` | Fit a positive-cost model such as a Gamma GLM; predict the mean euros per claim. Do not add zero-claim policies as zero-severity claims. Alternatively, model policy mean claim cost with claim-count weights. |
+| Pure premium | Combine the two predictions for each policy | `predicted claims per policy-year × predicted euros per claim` gives expected euros per policy-year. Multiply by policy exposure for expected cost over that policy's observed period. |
+| Tweedie comparison | One row per cost-evaluable policy, including zero-cost policies; target total cost divided by exposure | Fit a compound Poisson-Gamma Tweedie model with exposure weights and a power between 1 and 2; predict euros per policy-year. Select the power and other hyperparameters on validation data. |
+
+For the main comparison, fit **both** frequency and severity components using the training portion of the cost-evaluable cohort, and fit Tweedie on the same cohort. A separate frequency model trained on all valid policies can assess whether excluding incomplete cost records changes frequency performance. The severity model estimates a claim-weighted average amount conditional on the features; the product estimates expected cost under the frequency/severity model assumptions, not an observed individual premium.
+
+For illustration, a predicted frequency of 0.08 claims per policy-year and predicted severity of EUR 2,000 per claim give a pure premium of **EUR 160 per policy-year**, or EUR 80 for six months of exposure. This is expected claim cost only: expenses, profit, taxes and other pricing adjustments are not included.
+
+### 5. Validate and report
+
+- Tune preprocessing choices and model hyperparameters on training/validation data only; compare every pure-premium model on the **same cost-evaluable test policies**.
+- Evaluate frequency using exposure-weighted mean Poisson deviance of `ClaimNb / Exposure` against predicted annual claim rate. Also compare total observed claims with the sum of predicted annual rates multiplied by exposure.
+- Evaluate severity on held-out recorded claims using, for example, mean Gamma deviance for positive predictions and amounts; also compare observed and predicted total claim costs. Examine large losses separately.
+- For pure premium, compare observed total cost with predicted rate times exposure, and use an exposure-weighted Tweedie deviance on cost per exposure with the **same fixed evaluation power** for every candidate. Show calibration and lift by risk decile, the Gini index, and results by age group and region; include group sizes, exposure and uncertainty.
+- Report results on the cost-evaluable cohort alongside the full-policy frequency benchmark and the reconciliation limitations. Once all choices are fixed, optionally refit on training plus validation data and evaluate once on the untouched test set.
+
 ## Exploratory Data Analysis: Correlation Matrix
 
 ![Correlation Matrix Heatmap](Reports/correlation_matrix_heatmap.png)
@@ -91,18 +148,19 @@ Most variables show **very weak correlations** with each other (|r| < 0.20), inc
 
 #### Implications for Modeling
 
-1. **Non-linear effects likely**: The weak linear correlations justify the use of machine-learning methods (gradient boosting, neural networks) over simple linear GLMs, as these can capture non-linear relationships and interactions that standard Pearson correlation cannot detect.
+1. **Nonlinear effects are worth investigating**: Weak Pearson correlations do not rule out nonlinear relationships or interactions, but they do not prove that machine learning will outperform a GLM.
 
-2. **Joint frequency-severity modeling justified**: The independence of claim frequency from individual factors suggests that frequency and severity may follow different patterns and should be modeled separately rather than as a single pure-premium model.
+2. **Compare modeling approaches**: Frequency and severity have different targets and can be modeled separately, then compared with a direct pure-premium model. Weak correlations alone do not establish independence.
 
-3. **Multicollinearity not a concern**: The absence of strong correlations between predictors reduces multicollinearity risk in downstream models, simplifying feature selection and interpretation.
+3. **Check multicollinearity**: Pairwise correlations alone do not rule out multicollinearity, especially among categorical features or combinations of predictors.
 
-4. **Bonus-Malus as a proxy**: The strong driver age–bonus-malus relationship suggests BonusMalus captures accumulated driving experience and risk history; it may be a more informative predictor than raw driver age.
+4. **Bonus-Malus and age**: Their correlation is consistent with bonus-malus reflecting accumulated risk history, but predictive importance must be evaluated rather than inferred from correlation.
 
 ## Current project assets
 
 - `Data/freMTPL2freq.csv` — policy-level frequency and exposure data.
 - `Data/freMTPL2sev.csv` — claim-level severity data.
+- `Data_Audit_and_Reconcilation/Exploratory_Data_Analysis.ipynb` — ongoing data-quality exploration.
 - `Data_Analysis/generate_eda_report.py` — script for generating the exploratory data analysis report.
 - `Reports/EDA_Report.html` — generated EDA report.
 
@@ -144,5 +202,5 @@ The frequency data can also be loaded with `sklearn.datasets.fetch_openml(data_i
 
 | Column | Type | Range / Values | Description |
 |--------|------|-----------------|-------------|
-| **IDpol** | Integer | Unique ID | Policy identifier (links to frequency dataset) |
+| **IDpol** | Integer | Repeated for multiple claims | Policy identifier (links to frequency dataset) |
 | **ClaimAmount** | Float | >0 EUR | Individual claim amount in euros |
