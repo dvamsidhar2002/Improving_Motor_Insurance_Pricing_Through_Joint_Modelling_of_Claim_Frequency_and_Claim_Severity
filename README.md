@@ -67,6 +67,36 @@ The study uses the freMTPL2 French motor insurance dataset to model claim freque
 - Summarize findings against each research question and clearly state limitations and future work.
 - Ensure that the analysis can be rerun from the documented project files and dependencies.
 
+## Data preparation: step-by-step
+
+These are proposed preparation steps, not a completed pipeline. Keep the original CSV files unchanged and record the decisions made at each step.
+
+1. **Load and understand the files.** Read `Data/freMTPL2freq.csv` as one row per policy and `Data/freMTPL2sev.csv` as one row per recorded claim amount. `IDpol` links the tables; it is unique in the policy table but can occur multiple times in the severity table.
+
+2. **Audit each table.** Record row counts, column types, missing values, duplicate policy IDs, exact duplicate rows and value ranges. Check that `ClaimNb` is a nonnegative integer, `Exposure` is positive, and `ClaimAmount` is positive. Investigate unusual exposure periods and large claims rather than automatically deleting or capping them. Equal claim amounts are not necessarily duplicate claims.
+
+3. **Reconcile the tables.** Count severity rows and sum `ClaimAmount` by `IDpol`; left-join these summaries to the policy table. Separately identify severity IDs without a policy, policies with claims but no severity records, and policies where `ClaimNb` differs from the number of severity records. Do not join the raw severity table to the frequency training table: multiple claims would duplicate the policy and its exposure.
+
+   An earlier audit of the repository CSVs found 678,013 distinct policies and 26,639 severity records. Six severity IDs (195 records) did not match a policy; 9,117 policies had a claim-count/record-count mismatch. Recompute these figures if the files change and document the cause and treatment of each discrepancy.
+
+4. **Define usable cohorts and handle missing outcomes.** Keep all valid policies for a frequency-only benchmark. For the initial pure-premium comparison, use a common cost-evaluable cohort of valid policies whose `ClaimNb` equals their matched severity-record count. Assign zero total cost to a zero-claim policy with no severity records; do **not** assign zero cost to a policy with claims but missing or mismatched amounts. Exclude unmatched severity records until they can be reliably linked to policy features. Report exclusions and compare their characteristics and exposure with those of the included policies: missing amounts may be systematic, so the cost-evaluable cohort may not represent the whole portfolio.
+
+5. **Split by policy before fitting preprocessing.** Assign policy IDs to training, validation and test sets, for example 70% / 15% / 15%, using a recorded random seed. Stratify by whether a policy has a claim where practical. All claims for a policy must stay in the same split, and all models must use the same policy assignments. A random split measures performance on similar policies; it is not a substitute for testing on a later period.
+
+6. **Prepare pricing features.** Use information available at pricing time, such as vehicle, driver, bonus-malus, area, density and region variables. Keep `IDpol` for joining and splitting, not as a predictor; do not use `ClaimNb` or `ClaimAmount` as predictors. Fit missing-value imputation, categorical encoding, scaling and any data-driven transformations or capping on the training set only, then apply them to validation and test. Handle unseen categories and document all transformations.
+
+7. **Create model-ready datasets.**
+
+   | Dataset | Rows and target | Exposure handling |
+   |---|---|---|
+   | Frequency | One row per policy, including zero claims; target `ClaimNb` | Use `log(Exposure)` as a Poisson offset, or use `ClaimNb / Exposure` as the target with exposure weights for an estimator that supports them. |
+   | Severity | One row per matched recorded claim, with its policy's pricing features; target `ClaimAmount` | Keep all claims belonging to a policy in the same split. Zero-claim policies do not supply severity targets. |
+   | Pure premium | One row per cost-evaluable policy, including zero-claim policies; target total claim cost divided by `Exposure` | Use exposure as a weight when fitting and evaluating a rate-based Tweedie model. |
+
+   For a fair frequency-times-severity versus Tweedie comparison, prepare both frequency and severity training data from the training portion of the same cost-evaluable cohort. Keep the full-policy frequency benchmark separate. A policy with 0.5 years of exposure and two claims of EUR 1,000 and EUR 500 has total cost EUR 1,500 and an observed cost rate of EUR 3,000 per policy-year.
+
+8. **Validate and document the output.** Check that policy IDs do not overlap between splits, each prepared policy appears only once in policy-level datasets, all model exposures are positive, and claim rows remain with their policy. Reconcile retained row counts, claim counts, exposure and total observed amounts against the audit. Save the split seed, source versions, exclusion counts, feature definitions and preprocessing settings so the same datasets can be reproduced. Keep the test set untouched until the final evaluation.
+
 ## Exploratory Data Analysis: Correlation Matrix
 
 ![Correlation Matrix Heatmap](Reports/correlation_matrix_heatmap.png)
@@ -144,5 +174,5 @@ The frequency data can also be loaded with `sklearn.datasets.fetch_openml(data_i
 
 | Column | Type | Range / Values | Description |
 |--------|------|-----------------|-------------|
-| **IDpol** | Integer | Unique ID | Policy identifier (links to frequency dataset) |
+| **IDpol** | Integer | Repeated for multiple claims | Policy identifier (links to frequency dataset) |
 | **ClaimAmount** | Float | >0 EUR | Individual claim amount in euros |
