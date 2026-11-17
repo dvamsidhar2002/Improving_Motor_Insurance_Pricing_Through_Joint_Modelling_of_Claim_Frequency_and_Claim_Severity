@@ -124,38 +124,6 @@ For illustration, a predicted frequency of 0.08 claims per policy-year and predi
 - For pure premium, compare observed total cost with predicted rate times exposure, and use an exposure-weighted Tweedie deviance on cost per exposure with the **same fixed evaluation power** for every candidate. Show calibration and lift by risk decile, the Gini index, and results by age group and region; include group sizes, exposure and uncertainty.
 - Report results on the cost-evaluable cohort alongside the full-policy frequency benchmark and the reconciliation limitations. Once all choices are fixed, optionally refit on training plus validation data and evaluate once on the untouched test set.
 
-## Exploratory Data Analysis: Correlation Matrix
-
-![Correlation Matrix Heatmap](Reports/correlation_matrix_heatmap.png)
-
-### Key Findings
-
-A correlation matrix analysis of the freMTPL2 frequency dataset reveals important insights into the relationships between insurance risk factors:
-
-#### Strong Relationships
-- **Driver Age & Bonus-Malus (r = -0.48)**: This is the strongest correlation observed. The negative relationship indicates that older drivers tend to have lower BonusMalus coefficients (values closer to 50), reflecting lower malus penalties. This reflects that experienced drivers accumulate bonuses over time, a key pricing principle in motor insurance.
-
-#### Weak Linear Relationships
-Most variables show **very weak correlations** with each other (|r| < 0.20), including:
-
-- **Claim Frequency (ClaimNb) vs. all other variables**: Nearly zero correlations with driver age, vehicle power, vehicle age, density, and other factors (range: -0.02 to 0.07). This indicates that claim counts are **not strongly linearly dependent** on individual demographic or vehicle characteristics.
-  
-- **Vehicle Power**: Minimal correlation with claim frequency (r = -0.00), suggesting vehicle engine size alone does not explain claim occurrence patterns.
-
-- **Vehicle Age**: Weak correlation with claims (r = 0.07) and exposure (r = -0.05), despite intuitive expectations about older vehicle safety.
-
-- **Density**: Very weak correlation with claims (r = 0.07) and other factors, suggesting geographic population density has minimal linear association with claim frequency at the policy level.
-
-#### Implications for Modeling
-
-1. **Nonlinear effects are worth investigating**: Weak Pearson correlations do not rule out nonlinear relationships or interactions, but they do not prove that machine learning will outperform a GLM.
-
-2. **Compare modeling approaches**: Frequency and severity have different targets and can be modeled separately, then compared with a direct pure-premium model. Weak correlations alone do not establish independence.
-
-3. **Check multicollinearity**: Pairwise correlations alone do not rule out multicollinearity, especially among categorical features or combinations of predictors.
-
-4. **Bonus-Malus and age**: Their correlation is consistent with bonus-malus reflecting accumulated risk history, but predictive importance must be evaluated rather than inferred from correlation.
-
 ## Current project assets
 
 - `Data/freMTPL2freq.csv` — policy-level frequency and exposure data.
